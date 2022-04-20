@@ -33,7 +33,7 @@ const WelcomeScreen = () => {
       <div className="w-full bg-green-600 p-1 absolute bottom-0 ">
         <p className="text-center text-md font-light">
           Built with 🐍 by{" "}
-          <a className="font-normal" href="https://github.com/CGRDMZ">
+          <a className="font-normal" href="https://github.com/CGRDMZ" rel="noopener noreferrer" target="_blank">
             CGRDMZ
           </a>
         </p>
