@@ -3,6 +3,7 @@ import logo from './logo.svg'
 import './App.css'
 import WelcomeScreen from './components/WelcomeScreen'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import GameScreen from './components/GameScreen'
 
 function App() {
 
@@ -12,7 +13,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<WelcomeScreen />}/>
-            <Route path="play" element={<></>} />
+            <Route path="play" element={<GameScreen />} />
           </Routes>
         </BrowserRouter>
       </div>
