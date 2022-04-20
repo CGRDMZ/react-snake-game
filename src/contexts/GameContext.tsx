@@ -50,7 +50,7 @@ const initialState: GameStateType = {
 const reducer = (state: GameStateType, action: any) => {
   switch (action.type) {
     case "RESET":
-      return initialState;
+      return { ...initialState, highScore: state.highScore };
     case "SET_INTERVAL":
       return {
         ...state,
@@ -114,6 +114,7 @@ const reducer = (state: GameStateType, action: any) => {
           ...state,
           interval: -1,
           isPlaying: false,
+          highScore: highscore,
         };
       }
       const shouldGrow: boolean =
@@ -155,7 +156,12 @@ const reducer = (state: GameStateType, action: any) => {
 
       newCells = newCells.map((r, y) => {
         return r.map((c, x) => {
-          if (HEAD_VISIBLE && state.head && x === state.head.posX && y === state.head.posY) {
+          if (
+            HEAD_VISIBLE &&
+            state.head &&
+            x === state.head.posX &&
+            y === state.head.posY
+          ) {
             return CellType.HEAD;
           } else if (state.snake.some((v) => v.posX === x && v.posY === y)) {
             return CellType.TAIL;
