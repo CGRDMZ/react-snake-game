@@ -7,7 +7,7 @@ import {
   useReducer,
   useState,
 } from "react";
-import { GRID_SIZE } from "../constants";
+import { DELAY_TIME, GRID_SIZE, HEAD_VISIBLE } from "../constants";
 
 export enum CellType {
   EMPTY,
@@ -23,34 +23,50 @@ export interface Coordinate {
 
 type Direction = "up" | "left" | "right" | "down";
 
-interface GameContextType {
+interface GameStateType {
   cells: CellType[][];
   snake: Coordinate[];
+  head: Coordinate | null;
   food: Coordinate | null;
   isPlaying: boolean;
   highScore: number;
+  score: number;
   dir: Direction;
   interval: number;
 }
 
-const initialState: GameContextType = {
+const initialState: GameStateType = {
   cells: Array(GRID_SIZE).fill(Array(GRID_SIZE).fill(CellType.EMPTY)),
-  snake: [{ posX: 5, posY: 5 }],
+  snake: [{ posX: Math.floor(GRID_SIZE / 2), posY: Math.floor(GRID_SIZE / 2) }],
+  head: null,
   isPlaying: true,
   highScore: Number(localStorage.getItem("highScore")) ?? 0,
   dir: "up",
   interval: -1,
-  food: null
+  food: null,
+  score: 1,
 };
 
-const reducer = (state: GameContextType, action: any) => {
+const reducer = (state: GameStateType, action: any) => {
   switch (action.type) {
+    case "RESET":
+      return initialState;
     case "SET_INTERVAL":
       return {
         ...state,
         interval: action.payload,
-      }
+      };
     case "CHANGE_DIR":
+      // do not allow snake to turn back on itself
+      if (
+        (state.dir === "up" && action.payload === "down") ||
+        (state.dir === "down" && action.payload === "up") ||
+        (state.dir === "left" && action.payload === "right") ||
+        (state.dir === "right" && action.payload === "left")
+      ) {
+        return state;
+      }
+
       return {
         ...state,
         dir: action.payload as Direction,
@@ -62,45 +78,67 @@ const reducer = (state: GameContextType, action: any) => {
       let newHead: Coordinate;
       const head = state.snake[0];
 
-      
       switch (state.dir) {
         case "up":
           newHead = { ...head, posY: head.posY - 1 };
           break;
-          case "down":
-            newHead = { ...head, posY: head.posY + 1 };
-            break;
-            case "left":
-              newHead = { ...head, posX: head.posX - 1 };
-              break;
-              case "right":
-                newHead = { ...head, posX: head.posX + 1 };
-                break;
-              }
-              
-              if (
-                newHead.posX < -1 ||
-                newHead.posX >= GRID_SIZE + 1 ||
-                newHead.posY < -1 ||
-                newHead.posY >= GRID_SIZE + 1
-                ) {
+        case "down":
+          newHead = { ...head, posY: head.posY + 1 };
+          break;
+        case "left":
+          newHead = { ...head, posX: head.posX - 1 };
+          break;
+        case "right":
+          newHead = { ...head, posX: head.posX + 1 };
+          break;
+      }
+
+      const shouldDie = () => {
+        const eatsItself = state.snake.slice(1).some((cell) => {
+          return cell.posX === head.posX && cell.posY === head.posY;
+        });
+        const outOfArea =
+          head.posX < 0 ||
+          head.posX >= GRID_SIZE ||
+          head.posY < 0 ||
+          head.posY >= GRID_SIZE;
+        return eatsItself || outOfArea;
+      };
+
+      if (shouldDie()) {
         clearInterval(state.interval);
+        const highscore = Math.max(state.highScore, state.score);
+        localStorage.setItem("highScore", highscore.toString());
+
         return {
           ...state,
+          interval: -1,
           isPlaying: false,
         };
       }
-      const shouldGrow: boolean = !!state.food && newHead.posX === state.food.posX && newHead.posY === state.food.posY;
+      const shouldGrow: boolean =
+        !!state.food &&
+        newHead.posX === state.food.posX &&
+        newHead.posY === state.food.posY;
 
       // if no food exist create a random food on the map
-      let foodCoord: Coordinate = state.food ? state.food : {
-        posX: Math.floor(Math.random() * GRID_SIZE),
-        posY: Math.floor(Math.random() * GRID_SIZE),
-      }
+      let foodCoord: Coordinate;
+      do {
+        foodCoord = state.food
+          ? state.food
+          : {
+              posX: Math.floor(Math.random() * GRID_SIZE),
+              posY: Math.floor(Math.random() * GRID_SIZE),
+            };
+      } while (
+        state.snake.some(
+          (v) => v.posX === foodCoord.posX && v.posY === foodCoord.posY
+        )
+      );
 
       const newSnake: Coordinate[] = [];
       newSnake.push(newHead);
-      
+
       for (let i = 0; i < state.snake.length; i++) {
         if (i === state.snake.length - 1) {
           if (shouldGrow) {
@@ -117,9 +155,15 @@ const reducer = (state: GameContextType, action: any) => {
 
       newCells = newCells.map((r, y) => {
         return r.map((c, x) => {
-          if (state.snake.some((v) => v.posX === x && v.posY === y)) {
+          if (HEAD_VISIBLE && state.head && x === state.head.posX && y === state.head.posY) {
+            return CellType.HEAD;
+          } else if (state.snake.some((v) => v.posX === x && v.posY === y)) {
             return CellType.TAIL;
-          } else if (state.food && x === state.food.posX && state.food.posY === y) {
+          } else if (
+            state.food &&
+            x === state.food.posX &&
+            state.food.posY === y
+          ) {
             return CellType.FOOD;
           } else {
             return CellType.EMPTY;
@@ -130,14 +174,21 @@ const reducer = (state: GameContextType, action: any) => {
       return {
         ...state,
         snake: newSnake,
+        head: newHead,
         cells: newCells,
         food: shouldGrow ? null : foodCoord,
+        score: shouldGrow ? state.score + 1 : state.score,
       };
   }
   return state;
 };
 
-const GameContext = createContext<GameContextType>(initialState);
+export interface GameContextType {
+  state: GameStateType;
+  resetGame: () => void;
+}
+
+const GameContext = createContext<GameContextType>({} as GameContextType);
 
 export const GameContextProvider: FC<{ children: ReactNode }> = ({
   children,
@@ -145,23 +196,21 @@ export const GameContextProvider: FC<{ children: ReactNode }> = ({
   const [state, dispatch] = useReducer(reducer, initialState);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      console.log("tick");
+    if (state.isPlaying) {
+      const interval = setInterval(() => {
+        dispatch({ type: "SET_INTERVAL", payload: interval });
+        dispatch({ type: "MOVE_SNAKE" });
+      }, DELAY_TIME);
 
-      dispatch({type: "SET_INTERVAL", payload: interval});
-      dispatch({ type: "MOVE_SNAKE" });
-    }, 1000);
-
-
-
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
+      return () => {
+        clearInterval(interval);
+      };
+    }
+  }, [state.isPlaying]);
 
   useEffect(() => {
     const eventHandler = (e: KeyboardEvent) => {
+      e.preventDefault();
       let dir: Direction = "up";
       if (e.key === "ArrowDown") {
         dir = "down";
@@ -184,7 +233,15 @@ export const GameContextProvider: FC<{ children: ReactNode }> = ({
     };
   }, []);
 
-  return <GameContext.Provider value={state}>{children}</GameContext.Provider>;
+  const resetGame = () => {
+    dispatch({ type: "RESET" });
+  };
+
+  return (
+    <GameContext.Provider value={{ state, resetGame }}>
+      {children}
+    </GameContext.Provider>
+  );
 };
 
 export const useGame = () => {
